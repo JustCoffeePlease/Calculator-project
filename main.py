@@ -13,13 +13,15 @@ from operator import add, sub, mul, truediv
 
 from design import Ui_MainWindow
 
-
 operations = {
     '+': add,
-    '-': sub,
+    '−': sub,
     '×': mul,
     '/': truediv
 }
+
+error_zero_div = 'Division by zero'
+error_undefined = 'Result is undefined'
 
 
 class Calupator(QMainWindow):
@@ -29,6 +31,7 @@ class Calupator(QMainWindow):
         self.ui.setupUi(self)
 
         self.entry = self.ui.le_entry
+        self.entry_max_len = self.entry.maxLength()
 
         QFontDatabase.addApplicationFont("fonts/Rubik-Regular.ttf")
 
@@ -48,6 +51,8 @@ class Calupator(QMainWindow):
         self.ui.btn_clear.clicked.connect(self.clear_all)
         self.ui.btn_ce.clicked.connect(self.clear_entry)
         self.ui.btn_point.clicked.connect(self.add_point)
+        self.ui.btn_neg.clicked.connect(self.negate)
+        self.ui.btn_backspace.clicked.connect(self.backspace)
 
         #math
         self.ui.btn_calc.clicked.connect(self.calculation)
@@ -57,6 +62,10 @@ class Calupator(QMainWindow):
         self.ui.btn_div.clicked.connect(self.math_operation)
 
     def add_digit(self) -> None:
+        # Инициализация удаления ошибок
+        self.remove_error()
+        # Инициализация отчистки поля временного выражения
+        self.clear_temp_if_equality()
         # Добавление цифр
         btn = self.sender()
         # Метод sender() возвращает Qt объект, который посылает сигнал
@@ -70,36 +79,38 @@ class Calupator(QMainWindow):
                 self.entry.setText(self.entry.text() + btn.text())
 
     def clear_all(self) -> None:
+        self.remove_error()
         # Очистка Line Edit
         self.ui.le_entry.setText('0')
         self.ui.lbl_temp.clear()
 
     def clear_entry(self) -> None:
+        self.remove_error()
+        self.clear_temp_if_equality()
         # Очистка label
         self.ui.le_entry.setText('0')
 
     def add_point(self) -> None:
+        self.clear_temp_if_equality()
         # Добаление точки
         if '.' not in self.ui.le_entry.text():
             self.ui.le_entry.setText(self.ui.le_entry.text() + '.')
-
-    def add_temp(self) -> None:
-        # Добавление временных выражений: Число и математический знак, равенство
-        btn = self.sender()
-        entry = self.remove_trailing_zeros(self.ui.le_entry.text())
-
-        if not self.ui.lbl_temp.text() or self.get_math_sign() == '=':
-            self.ui.lbl_temp.setText(self.ui.le_entry.text() + f' {btn.text()} ')
-            self.ui.le_entry.setText('0')
 
     @staticmethod
     def remove_trailing_zeros(num: str) -> str:
         # Удаление лишних нулей. Используется статический декоратор. В функцию передается и возвращается string число
         n = str(float(num))
-        if n[-2:] == 0:
-            return n[:-2]
-        else:
-            return n
+        return n[:-2] if n[-2:] == '.0' else n
+
+    def add_temp(self) -> None:
+        # Метод добавления временных выражений
+        # Удаление лишних нулей в поле добавления временного выражения
+        btn = self.sender()
+        entry = self.remove_trailing_zeros(self.ui.le_entry.text())
+
+        if not self.ui.lbl_temp.text() or self.get_math_sign() == '=':
+            self.ui.lbl_temp.setText(entry + f' {btn.text()} ')
+            self.ui.le_entry.setText('0')
 
     def get_entry_num(self) -> Union[int, float]: # Метод может возвращать только целое или вещественное число
         # Получаем число из Line Edit
@@ -130,13 +141,23 @@ class Calupator(QMainWindow):
         # Далее обрезаются конечные нули, выпоняется приведение к строке.
         # Далее из словаря по знаку берется операция.
         if temp:
-            result = self.remove_trailing_zeros(
-                str(operations[self.get_math_sign()](self.get_temp_num(), self.get_entry_num())))
-            self.ui.lbl_temp.setText(temp + self.remove_trailing_zeros(entry) + ' =')
-            self.ui.le_entry.setText(result)
-            return result
+            try:
+                result = self.remove_trailing_zeros(
+                    str(operations[self.get_math_sign()](self.get_temp_num(), self.get_entry_num())))
+                self.ui.lbl_temp.setText(temp + self.remove_trailing_zeros(entry) + ' =')
+                self.ui.le_entry.setText(result)
+                return result
 
-    def math_operation(self):
+            except KeyError:
+                pass
+
+            except ZeroDivisionError:
+                if self.get_temp_num() ==0:
+                    self.show_error(error_undefined)
+                else:
+                    self.show_error(error_zero_div)
+
+    def math_operation(self) -> None:
         # Метод математической операции
         temp = self.ui.lbl_temp.text()
         btn = self.sender()
@@ -155,7 +176,85 @@ class Calupator(QMainWindow):
                 else:
                     self.ui.lbl_temp.setText(temp[:-2] + f'{btn.text()} ')
             else:
-                self.ui.lbl_temp.setText(self.calculate() + f' {btn.text()}')
+                try:
+                    self.ui.lbl_temp.setText(self.calculation() + f' {btn.text()}')
+                except TypeError:
+                    pass
+
+    def negate(self) -> None:
+        self.clear_temp_if_equality()
+        # Добавление отрицания
+        entry = self.ui.le_entry.text()
+        # Логика условия:
+        # Если отрицания нет в поле,
+        # значит оно добавляется.
+        # Иначе убирается левый символ с помощью среза [1:].
+        # Учитывается дополнительное условие для нуля.
+        if '-' not in entry:
+            if entry != '0':
+                entry = '-' + entry
+        else:
+            entry = entry[1:]
+
+        if len(entry) == self.entry_max_len + 1 and '-' in entry:
+            self.entry.setMaxLength(self.entry_max_len + 1)
+        else:
+            self.entry.setMaxLength(self.entry_max_len)
+
+        self.entry.setText(entry)
+
+    def backspace(self) -> None:
+        self.remove_error()
+        self.clear_temp_if_equality()
+        # Добавляем функцию backspace
+        entry = self.ui.le_entry.text()
+
+        if len(entry) != 1:
+            if len(entry) == 2 and '-' in entry:
+                self.ui.le_entry.setText('0')
+            else:
+                self.ui.le_entry.setText(entry[:-1])
+        else:
+            self.ui.le_entry.setText('0')
+
+    def clear_temp_if_equality(self) -> None:
+        # Удаление равенства из временного выражения (Label)
+        # при дальнейшем нажатии кнопок цифр, точки, отрицания, Backspace и очищении поля вывода
+        if self.get_math_sign() == '=':
+            self.ui.lbl_temp.clear()
+
+    def show_error(self, text: str) -> None:
+        self.ui.le_entry.setMaxLength(len(text))
+        self.ui.le_entry.setText(text)
+        self.disable_buttons(True) # Выключаем кнопки
+
+    def remove_error(self) -> None:
+        # Убирание ошибок
+        if self.ui.le_entry.text() in (error_undefined, error_zero_div):
+            self.ui.le_entry.setMaxLength(self.entry_max_len)
+            self.ui.le_entry.setText('0')
+            self.disable_buttons(False) # Включаем кнопки
+
+    def disable_buttons(self, disable: bool) -> None:
+        self.ui.btn_calc.setDisabled(disable)
+        self.ui.btn_add.setDisabled(disable)
+        self.ui.btn_sub.setDisabled(disable)
+        self.ui.btn_mul.setDisabled(disable)
+        self.ui.btn_div.setDisabled(disable)
+        self.ui.btn_neg.setDisabled(disable)
+        self.ui.btn_point.setDisabled(disable)
+
+        color = 'color: #888;' if disable else 'color: white;'
+        self.change_buttons_color(color)
+
+    def change_buttons_color(self, css_color: str) -> None:
+        self.ui.btn_calc.setStyleSheet(css_color)
+        self.ui.btn_add.setStyleSheet(css_color)
+        self.ui.btn_sub.setStyleSheet(css_color)
+        self.ui.btn_mul.setStyleSheet(css_color)
+        self.ui.btn_div.setStyleSheet(css_color)
+        self.ui.btn_neg.setStyleSheet(css_color)
+        self.ui.btn_point.setStyleSheet(css_color)
 
 
 if __name__ == "__main__":
@@ -165,3 +264,5 @@ if __name__ == "__main__":
     window.show()
 
     sys.exit(app.exec())
+
+
