@@ -13,6 +13,7 @@ from operator import add, sub, mul, truediv
 
 from design import Ui_MainWindow
 
+# Переменная для выполнения математических операций
 operations = {
     '+': add,
     '−': sub,
@@ -20,6 +21,11 @@ operations = {
     '/': truediv
 }
 
+# Две переменные для регулировки размера шрифта
+default_font_size = 16
+default_entry_font_size = 40
+
+# Переменные для объявения ошибок
 error_zero_div = 'Division by zero'
 error_undefined = 'Result is undefined'
 
@@ -32,7 +38,7 @@ class Calupator(QMainWindow):
 
         self.entry = self.ui.le_entry
         self.entry_max_len = self.entry.maxLength()
-
+        
         QFontDatabase.addApplicationFont("fonts/Rubik-Regular.ttf")
 
         # digits
@@ -78,11 +84,17 @@ class Calupator(QMainWindow):
             else:
                 self.entry.setText(self.entry.text() + btn.text())
 
+        self.adjust_entry_font_size()
+        self.adjust_temp_font_size()
+
     def clear_all(self) -> None:
         self.remove_error()
         # Очистка Line Edit
         self.ui.le_entry.setText('0')
         self.ui.lbl_temp.clear()
+
+        self.adjust_entry_font_size()
+        self.adjust_temp_font_size()
 
     def clear_entry(self) -> None:
         self.remove_error()
@@ -90,11 +102,17 @@ class Calupator(QMainWindow):
         # Очистка label
         self.ui.le_entry.setText('0')
 
+        self.adjust_entry_font_size()
+        self.adjust_temp_font_size()
+
     def add_point(self) -> None:
         self.clear_temp_if_equality()
         # Добаление точки
         if '.' not in self.ui.le_entry.text():
             self.ui.le_entry.setText(self.ui.le_entry.text() + '.')
+
+        self.adjust_entry_font_size()
+        self.adjust_temp_font_size()
 
     @staticmethod
     def remove_trailing_zeros(num: str) -> str:
@@ -111,6 +129,9 @@ class Calupator(QMainWindow):
         if not self.ui.lbl_temp.text() or self.get_math_sign() == '=':
             self.ui.lbl_temp.setText(entry + f' {btn.text()} ')
             self.ui.le_entry.setText('0')
+
+        self.adjust_entry_font_size()
+        self.adjust_temp_font_size()
 
     def get_entry_num(self) -> Union[int, float]: # Метод может возвращать только целое или вещественное число
         # Получаем число из Line Edit
@@ -146,6 +167,8 @@ class Calupator(QMainWindow):
                     str(operations[self.get_math_sign()](self.get_temp_num(), self.get_entry_num())))
                 self.ui.lbl_temp.setText(temp + self.remove_trailing_zeros(entry) + ' =')
                 self.ui.le_entry.setText(result)
+                self.adjust_entry_font_size()
+                self.adjust_temp_font_size()
                 return result
 
             except KeyError:
@@ -181,6 +204,9 @@ class Calupator(QMainWindow):
                 except TypeError:
                     pass
 
+        self.adjust_entry_font_size()
+        self.adjust_temp_font_size()
+
     def negate(self) -> None:
         self.clear_temp_if_equality()
         # Добавление отрицания
@@ -202,6 +228,8 @@ class Calupator(QMainWindow):
             self.entry.setMaxLength(self.entry_max_len)
 
         self.entry.setText(entry)
+        self.adjust_entry_font_size()
+        self.adjust_temp_font_size()
 
     def backspace(self) -> None:
         self.remove_error()
@@ -217,22 +245,33 @@ class Calupator(QMainWindow):
         else:
             self.ui.le_entry.setText('0')
 
+        self.adjust_entry_font_size()
+        self.adjust_temp_font_size()
+
     def clear_temp_if_equality(self) -> None:
         # Удаление равенства из временного выражения (Label)
         # при дальнейшем нажатии кнопок цифр, точки, отрицания, Backspace и очищении поля вывода
         if self.get_math_sign() == '=':
             self.ui.lbl_temp.clear()
 
+        self.adjust_entry_font_size()
+        self.adjust_temp_font_size()
+
     def show_error(self, text: str) -> None:
         self.ui.le_entry.setMaxLength(len(text))
         self.ui.le_entry.setText(text)
+        self.adjust_entry_font_size()
+        self.adjust_temp_font_size()
         self.disable_buttons(True) # Выключаем кнопки
+
 
     def remove_error(self) -> None:
         # Убирание ошибок
         if self.ui.le_entry.text() in (error_undefined, error_zero_div):
             self.ui.le_entry.setMaxLength(self.entry_max_len)
             self.ui.le_entry.setText('0')
+            self.adjust_entry_font_size()
+            self.adjust_temp_font_size()
             self.disable_buttons(False) # Включаем кнопки
 
     def disable_buttons(self, disable: bool) -> None:
@@ -255,6 +294,52 @@ class Calupator(QMainWindow):
         self.ui.btn_div.setStyleSheet(css_color)
         self.ui.btn_neg.setStyleSheet(css_color)
         self.ui.btn_point.setStyleSheet(css_color)
+
+    def get_entry_text_width(self) -> int:
+        # Метод получения ширины текста в пикселях для поля
+        return self.ui.le_entry.fontMetrics().boundingRect(self.ui.le_entry.text()).width()
+
+    def get_temp_text_width(self) -> int():
+        # Метод получения ширины текста в пикселях для label
+        return self.ui.lbl_temp.fontMetrics().boundingRect(self.ui.lbl_temp.text()).width()
+
+    def adjust_entry_font_size(self) -> None:
+        # Регулировка размера шрифта
+        font_size = default_entry_font_size
+
+        while self.get_entry_text_width() > self.ui.le_entry.width() - 15:
+            font_size -= 1
+
+            self.ui.le_entry.setStyleSheet('font-size: ' + str(font_size) + 'pt; border: none;')
+
+        font_size = 1
+        while self.get_entry_text_width() < self.entry.width() - 60:
+            font_size += 1
+
+            if font_size > default_entry_font_size:
+                break
+
+            self.ui.le_entry.setStyleSheet('font-size: ' + str(font_size) + 'pt; border: none;')
+
+    def adjust_temp_font_size(self) -> None:
+        font_size = default_font_size
+        while self.get_temp_text_width() > self.ui.lbl_temp.width() - 10:
+            font_size -= 1
+            self.ui.lbl_temp.setStyleSheet('font-size: ' + str(font_size) + 'pt; color: #888;')
+
+        font_size = 1
+        while self.get_temp_text_width() < self.ui.lbl_temp.width() - 60:
+            font_size += 1
+
+            if font_size > default_font_size:
+                break
+
+            self.ui.lbl_temp.setStyleSheet('font-size: ' + str(font_size) + 'pt; color: #888;')
+
+    def resizeEvent(self, event) -> None:
+        # Регулировка размера при изменении ширины окна
+        self.adjust_entry_font_size()
+        self.adjust_temp_font_size()
 
 
 if __name__ == "__main__":
